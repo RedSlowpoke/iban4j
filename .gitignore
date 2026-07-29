@@ -1,4 +1,8 @@
 
+#Local
+deploy.sh
+.DS_Store
+
 #IntelliJ IDEA
 iban4j.iml
 .idea/
