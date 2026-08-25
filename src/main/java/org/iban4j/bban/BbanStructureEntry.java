@@ -15,7 +15,9 @@
  */
 package org.iban4j.bban;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -190,6 +192,29 @@ public class BbanStructureEntry {
    */
   public int getLength() {
     return length;
+  }
+
+  /**
+   * Enumerates every possible value for this entry's character type and length.
+   * Intended for an exhaustive search over short entries, such as check digits.
+   *
+   * @return a {@link java.util.List} of every possible {@link java.lang.String} value for this entry
+   */
+  public List<String> enumerateValues() {
+    final char[] charChoices = charByCharacterType.get(characterType);
+    final int base = charChoices.length;
+    final int total = (int) Math.pow(base, length);
+    final List<String> values = new ArrayList<>(total);
+    for (int i = 0; i < total; i++) {
+      final char[] buf = new char[length];
+      int n = i;
+      for (int pos = length - 1; pos >= 0; pos--) {
+        buf[pos] = charChoices[n % base];
+        n /= base;
+      }
+      values.add(new String(buf));
+    }
+    return values;
   }
 
   /**

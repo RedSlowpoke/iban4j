@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Random;
 import org.iban4j.bban.BbanStructure;
 import org.iban4j.bban.BbanStructureEntry;
+import org.iban4j.countryrules.CountryRulesAlgorithm;
+import org.iban4j.countryrules.CountryRulesRegistry;
 
 /**
  * Represents an International Bank Account Number (IBAN).
@@ -636,6 +638,9 @@ public final class Iban {
             countryCode.toString(), "Country code is not supported.");
       }
 
+      final boolean nationalCheckDigitProvided = nationalCheckDigit != null;
+      BbanStructureEntry nationalCheckDigitEntry = null;
+
       for (final BbanStructureEntry entry : structure.getEntries()) {
         switch (entry.getEntryType()) {
           case bank_code:
@@ -659,6 +664,7 @@ public final class Iban {
             }
             break;
           case national_check_digit:
+            nationalCheckDigitEntry = entry;
             if (nationalCheckDigit == null) {
               nationalCheckDigit = entry.getRandom(random);
             }
@@ -680,6 +686,41 @@ public final class Iban {
             break;
         }
       }
+
+      // The check digit above was filled with an arbitrary value. If the country has a
+      // registered country-specific rule, replace it with one that actually satisfies that
+      // rule, so random IBANs remain valid when country-specific validation is enabled.
+      if (!nationalCheckDigitProvided && nationalCheckDigitEntry != null) {
+        resolveNationalCheckDigit(nationalCheckDigitEntry);
+      }
+    }
+
+    /**
+     * Replaces the (arbitrarily filled) national check digit with the first candidate value
+     * that satisfies the country's registered {@link CountryRulesAlgorithm}, if any. Falls back
+     * to leaving the arbitrary value untouched if no registered algorithm exists, or none of the
+     * candidate values satisfy it.
+     *
+     * @param entry The BBAN structure entry describing the national check digit's shape.
+     */
+    private void resolveNationalCheckDigit(final BbanStructureEntry entry) {
+      final CountryRulesAlgorithm algorithm = CountryRulesRegistry.get(countryCode);
+      if (algorithm == null) {
+        return;
+      }
+
+      final String fallback = nationalCheckDigit;
+      for (final String candidate : entry.enumerateValues()) {
+        nationalCheckDigit = candidate;
+        try {
+          if (algorithm.validate(build(false))) {
+            return;
+          }
+        } catch (RuntimeException ignored) {
+          // candidate produced an invalid BBAN/IBAN; keep searching
+        }
+      }
+      nationalCheckDigit = fallback;
     }
   }
 }
